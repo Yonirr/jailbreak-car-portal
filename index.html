@@ -1,147 +1,647 @@
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jailbreak Free Car Application Portal</title>
+  <style>
+    :root {
+      --bg: #0d1226;
+      --panel: #161e3d;
+      --panel-2: #1d2750;
+      --text: #f4f6ff;
+      --muted: #9aa6d6;
+      --border: #2c396e;
+      --accent: #4f7cff;
+      --accent-hover: #658dff;
+      --success: #22a67a;
+      --danger: #e04f67;
+    }
 
-  const COLLECTION_NAME = "jailbreak_car_applications";
-  const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyBVv6hGs6vt0SvzJLSXFOre4YLFiymMPbY",
-    authDomain: "jailbreak-car-portal.firebaseapp.com",
-    projectId: "jailbreak-car-portal",
-    storageBucket: "jailbreak-car-portal.firebasestorage.app",
-    messagingSenderId: "436243354726",
-    appId: "1:436243354726:web:232e8f8de93116dfddc9a7"
-  };
+    * { box-sizing: border-box; }
 
-  const app = initializeApp(FIREBASE_CONFIG);
-  const db = getFirestore(app);
-  const auth = getAuth(app);
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      padding: 24px 16px;
+    }
 
-  let submissions = [];
-  let isUnlocked = false;
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
 
-  const $ = id => document.getElementById(id);
-  const [visitorTabBtn, ownerTabBtn, visitorView, ownerView, carForm, robloxUsernameInput, friendNameInput, vehicleSelect, customVehicleWrap, customVehicleInput, reasonInput, formError, submitBtn, syncStatus, receiptView, receiptCodeText, copyReceiptBtn, newRequestBtn, ownerLockBox, ownerDashboard, passcodeInput, passcodeError, unlockBtn, searchInput, statusFilter, refreshBtn, exportJsonBtn, exportCsvBtn, lockBtn, clearAllBtn, ownerSummary, submissionsList] = 
-    ['visitorTabBtn', 'ownerTabBtn', 'visitorView', 'ownerView', 'carForm', 'robloxUsernameInput', 'friendNameInput', 'vehicleSelect', 'customVehicleWrap', 'customVehicleInput', 'reasonInput', 'formError', 'submitBtn', 'syncStatus', 'receiptView', 'receiptCodeText', 'copyReceiptBtn', 'newRequestBtn', 'ownerLockBox', 'ownerDashboard', 'ownerEmail', 'passcodeError', 'unlockBtn', 'searchInput', 'statusFilter', 'refreshBtn', 'exportJsonBtn', 'exportCsvBtn', 'lockBtn', 'clearAllBtn', 'ownerSummary', 'submissionsList'].map($);
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
 
-  syncStatus.textContent = "Connected securely to Firestore (live sync enabled).";
+    h1 {
+      margin: 0;
+      font-size: 1.45rem;
+    }
 
-  const validateRobloxUsername = name => /^[A-Za-z0-9_]{3,20}$/.test(name) && !name.startsWith("_") && !name.endsWith("_") && !name.includes("__") ? "" : "Invalid Roblox Username.";
-  const generateReceiptCode = () => `JB-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
 
-  async function loadSubmissions() {
-    const q = query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    submissions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderInbox();
-  }
+    .mode-switch {
+      display: flex;
+      gap: 8px;
+    }
 
-  async function updateSubmissionStatus(id, status) {
-    await updateDoc(doc(db, COLLECTION_NAME, id), { status });
-    submissions = submissions.map(item => item.id === id ? { ...item, status } : item);
-    renderInbox();
-  }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
 
-  async function deleteSubmission(id) {
-    await deleteDoc(doc(db, COLLECTION_NAME, id));
-    submissions = submissions.filter(item => item.id !== id);
-    renderInbox();
-  }
+    label {
+      display: block;
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin: 14px 0 6px;
+    }
 
-  const escapeHtml = str => String(str ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    label:first-child {
+      margin-top: 0;
+    }
 
-  function renderInbox() {
-    if (!isUnlocked) return;
-    const term = searchInput.value.trim().toLowerCase();
-    const statusVal = statusFilter.value;
+    input, select, textarea, button {
+      font: inherit;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+    }
 
-    const filtered = submissions.filter(item => {
-      const matchesStatus = statusVal === "ALL" || item.status === statusVal;
-      const haystack = [item.username, item.friendName, item.vehicle, item.reason, item.receiptCode].join(" ").toLowerCase();
-      return matchesStatus && (!term || haystack.includes(term));
-    });
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      padding: 11px 12px;
+    }
 
-    ownerSummary.textContent = `Showing ${filtered.length} of ${submissions.length} submissions`;
-    if (!filtered.length) { submissionsList.innerHTML = `<div class="subtitle">No requests.</div>`; return; }
+    textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
 
-    submissionsList.innerHTML = filtered.map(item => `
-      <div class="sub-item">
-        <div class="sub-header"><strong>@${escapeHtml(item.username)} → ${escapeHtml(item.vehicle)}</strong><span class="subtitle">${escapeHtml(item.receiptCode)}</span></div>
-        <div class="sub-meta">
-          <div><strong>Friend:</strong> ${escapeHtml(item.friendName || "None")}</div>
-          <div><strong>Reason:</strong> ${escapeHtml(item.reason || "None")}</div>
+    button {
+      cursor: pointer;
+      padding: 10px 14px;
+      font-weight: 600;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button.secondary {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: #253266;
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .error-msg {
+      color: #ff8ca1;
+      font-size: 0.85rem;
+      margin-top: 6px;
+      min-height: 1.2em;
+    }
+
+    .sync-status {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .receipt-box {
+      background: var(--panel-2);
+      border: 1px solid var(--success);
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .receipt-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: var(--bg);
+      padding: 8px 12px;
+      border-radius: 8px;
+      display: inline-block;
+      margin: 8px 0 12px;
+      user-select: all;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+
+    .toolbar input, .toolbar select {
+      width: auto;
+      min-width: 170px;
+    }
+
+    .submissions-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .sub-item {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .sub-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .sub-meta {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .sub-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    .sub-actions select {
+      width: auto;
+      padding: 7px 10px;
+    }
+
+    .sub-actions button {
+      padding: 7px 11px;
+      font-size: 0.85rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <h1>Jailbreak Free Car Application Portal</h1>
+        <div class="subtitle">Submit your request privately. Submissions are only visible inside the Owner Inbox.</div>
+      </div>
+      <div class="mode-switch">
+        <button id="visitorTabBtn" type="button" class="secondary">Applicant Form</button>
+        <button id="ownerTabBtn" type="button" class="secondary">Owner Inbox</button>
+      </div>
+    </div>
+
+    <!-- VISITOR SECTION -->
+    <section id="visitorView" class="card">
+      <form id="carForm" novalidate>
+        <label for="robloxUsername">Roblox Username *</label>
+        <input
+          id="robloxUsername"
+          type="text"
+          maxlength="20"
+          placeholder="e.g. SpeedRunner_JB"
+          autocomplete="off"
+          required
+        />
+
+        <label for="friendName">Friend's Name (Optional)</label>
+        <input
+          id="friendName"
+          type="text"
+          maxlength="40"
+          placeholder="Name of a friend (optional)"
+          autocomplete="off"
+        />
+
+        <label for="vehicleSelect">Requested Jailbreak Vehicle *</label>
+        <select id="vehicleSelect" required>
+          <option value="">Choose a vehicle...</option>
+          <option value="Concept">Concept</option>
+          <option value="Brulee">Brulee</option>
+          <option value="Volt">Volt</option>
+          <option value="Roadster">Roadster</option>
+          <option value="Drone">Drone</option>
+          <option value="Camaro">Camaro</option>
+          <option value="Custom">Other / Custom...</option>
+        </select>
+
+        <div id="customVehicleWrap" class="hidden">
+          <label for="customVehicleInput">Custom Vehicle Name *</label>
+          <input
+            id="customVehicleInput"
+            type="text"
+            maxlength="40"
+            placeholder="Type vehicle name"
+          />
         </div>
-        <div class="sub-actions">
-          <select data-action="status" data-id="${escapeHtml(item.id)}">
-            ${["Pending", "Approved", "Fulfilled", "Declined"].map(st => `<option value="${st}" ${item.status === st ? "selected" : ""}>${st}</option>`).join("")}
-          </select>
-          <button type="button" class="secondary" data-action="copy" data-username="${escapeHtml(item.username)}">Copy User</button>
-          <button type="button" class="danger" data-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+
+        <label for="reasonInput">Playstyle / Reason (Optional)</label>
+        <textarea
+          id="reasonInput"
+          maxlength="240"
+          placeholder="Why do you want this vehicle? (optional)"
+        ></textarea>
+
+        <div id="formError" class="error-msg"></div>
+
+        <button id="submitBtn" type="submit">Submit Car Request</button>
+        <div id="syncStatus" class="sync-status"></div>
+      </form>
+
+      <div id="receiptView" class="receipt-box hidden">
+        <h2 style="margin: 0 0 6px;">Application Recorded</h2>
+        <div class="subtitle">Your request has been saved privately for the giveaway owner.</div>
+        <div class="receipt-code" id="receiptCodeText"></div>
+        <div>
+          <button id="copyReceiptBtn" type="button" class="secondary">Copy Receipt ID</button>
+          <button id="newRequestBtn" type="button">Submit Another Request</button>
         </div>
       </div>
-    `).join("");
-  }
+    </section>
 
-  visitorTabBtn.addEventListener("click", () => { visitorView.classList.remove("hidden"); ownerView.classList.add("hidden"); });
-  ownerTabBtn.addEventListener("click", () => { visitorView.classList.add("hidden"); ownerView.classList.remove("hidden"); if (isUnlocked) loadSubmissions(); });
-  vehicleSelect.addEventListener("change", () => customVehicleWrap.classList.toggle("hidden", vehicleSelect.value !== "Custom"));
+    <!-- OWNER SECTION -->
+    <section id="ownerView" class="card hidden">
+      <div id="ownerLockBox">
+        <h2 style="margin: 0 0 6px;">Owner Inbox Locked</h2>
+        <div class="subtitle">Sign in with your owner account to view submissions.</div>
+        <form id="ownerLoginForm" novalidate>
+          <label for="ownerEmail">Owner Email</label>
+          <input id="ownerEmail" type="email" autocomplete="username" placeholder="owner@example.com" required />
 
-  carForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); formError.textContent = "";
-    const username = robloxUsernameInput.value.trim();
-    const finalVehicle = vehicleSelect.value === "Custom" ? customVehicleInput.value.trim() : vehicleSelect.value;
-    const err = validateRobloxUsername(username) || (!finalVehicle ? "Choose a vehicle" : "");
-    if (err) { formError.textContent = err; return; }
+          <label for="ownerPassword">Password</label>
+          <input id="ownerPassword" type="password" autocomplete="current-password" placeholder="Enter password" required />
 
-    submitBtn.disabled = true;
-    try {
-      const code = generateReceiptCode();
-      await addDoc(collection(db, COLLECTION_NAME), {
-        username, friendName: friendNameInput.value.trim(), vehicle: finalVehicle, reason: reasonInput.value.trim(),
-        status: "Pending", receiptCode: code, createdAt: new Date().toISOString()
-      });
-      receiptCodeText.textContent = code; carForm.classList.add("hidden"); receiptView.classList.remove("hidden");
-    } catch (e) { formError.textContent = e.message; }
-    submitBtn.disabled = false;
-  });
+          <div id="passcodeError" class="error-msg"></div>
+          <button id="unlockBtn" type="submit">Unlock Inbox</button>
+        </form>
+      </div>
 
-  copyReceiptBtn.addEventListener("click", () => { navigator.clipboard.writeText(receiptCodeText.textContent); copyReceiptBtn.textContent = "Copied!"; setTimeout(() => copyReceiptBtn.textContent = "Copy Receipt ID", 1500); });
-  newRequestBtn.addEventListener("click", () => { carForm.reset(); customVehicleWrap.classList.add("hidden"); receiptView.classList.add("hidden"); carForm.classList.remove("hidden"); });
+      <div id="ownerDashboard" class="hidden">
+        <div class="toolbar">
+          <input id="searchInput" type="search" placeholder="Search username, friend, car, receipt..." />
+          <select id="statusFilter">
+            <option value="ALL">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Fulfilled">Fulfilled</option>
+            <option value="Declined">Declined</option>
+          </select>
+          <button id="refreshBtn" type="button" class="secondary">Refresh</button>
+          <button id="exportJsonBtn" type="button" class="secondary">Export JSON</button>
+          <button id="exportCsvBtn" type="button" class="secondary">Export CSV</button>
+          <button id="lockBtn" type="button" class="secondary">Lock</button>
+          <button id="clearAllBtn" type="button" class="danger">Clear All</button>
+        </div>
 
-  onAuthStateChanged(auth, user => {
-    isUnlocked = !!user; ownerLockBox.classList.toggle("hidden", isUnlocked); ownerDashboard.classList.toggle("hidden", !isUnlocked);
-    if (user) loadSubmissions();
-  });
+        <div id="ownerSummary" class="subtitle" style="margin-bottom: 12px;"></div>
+        <div id="submissionsList" class="submissions-list"></div>
+      </div>
+    </section>
+  </div>
 
-  unlockBtn.addEventListener("click", () => {
-    passcodeError.textContent = "";
-    signInWithEmailAndPassword(auth, $('ownerEmail').value, $('ownerPassword').value).catch(e => passcodeError.textContent = e.message);
-  });
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      updateDoc,
+      deleteDoc,
+      doc,
+      query,
+      orderBy
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 
-  lockBtn.addEventListener("click", () => signOut(auth));
-  refreshBtn.addEventListener("click", loadSubmissions);
-  searchInput.addEventListener("input", renderInbox);
-  statusFilter.addEventListener("change", renderInbox);
+    const COLLECTION_NAME = "jailbreak_car_applications";
+    const OWNER_UID = "nGMbttFFHidKzqEH2Go4TMlC98I3";
 
-  submissionsList.addEventListener("change", async e => { if (e.target.dataset.action === "status") await updateSubmissionStatus(e.target.dataset.id, e.target.value); });
-  submissionsList.addEventListener("click", async e => {
-    const btn = e.target.closest("button"); if (!btn) return;
-    if (btn.dataset.action === "copy") { navigator.clipboard.writeText(btn.dataset.username); btn.textContent = "Copied!"; setTimeout(() => btn.textContent = "Copy User", 1200); }
-    if (btn.dataset.action === "delete") await deleteSubmission(btn.dataset.id);
-  });
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBVv6hGs6vt0SvzJLSXFOre4YLFiymMPbY",
+      authDomain: "jailbreak-car-portal.firebaseapp.com",
+      projectId: "jailbreak-car-portal",
+      storageBucket: "jailbreak-car-portal.firebasestorage.app",
+      messagingSenderId: "436243354726",
+      appId: "1:436243354726:web:232e8f8de93116dfddc9a7"
+    };
 
-  const downloadFile = (file, data, type) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type })); a.download = file; a.click(); };
-  exportJsonBtn.addEventListener("click", () => downloadFile("jailbreak.json", JSON.stringify(submissions, null, 2), "application/json"));
-  exportCsvBtn.addEventListener("click", () => {
-    const heads = ["receiptCode", "username", "friendName", "vehicle", "status", "reason", "createdAt"];
-    const rows = submissions.map(s => heads.map(h => `"${String(s[h] ?? "").replaceAll('"', '""')}"`).join(","));
-    downloadFile("jailbreak.csv", [heads.join(","), ...rows].join("\n"), "text/csv");
-  });
-  clearAllBtn.addEventListener("click", async () => {
-    if (confirm("Clear all submissions?")) {
-      const snap = await getDocs(collection(db, COLLECTION_NAME));
-      await Promise.all(snap.docs.map(d => deleteDoc(doc(db, COLLECTION_NAME, d.id))));
-      submissions = []; renderInbox();
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let submissions = [];
+    let isUnlocked = false;
+
+    const $ = id => document.getElementById(id);
+    const [
+      visitorTabBtn, ownerTabBtn, visitorView, ownerView, carForm,
+      robloxUsernameInput, friendNameInput, vehicleSelect, customVehicleWrap,
+      customVehicleInput, reasonInput, formError, submitBtn, syncStatus,
+      receiptView, receiptCodeText, copyReceiptBtn, newRequestBtn,
+      ownerLockBox, ownerLoginForm, ownerEmailInput, ownerPasswordInput,
+      passcodeError, unlockBtn, ownerDashboard, searchInput, statusFilter,
+      refreshBtn, exportJsonBtn, exportCsvBtn, lockBtn, clearAllBtn,
+      ownerSummary, submissionsList
+    ] = [
+      "visitorTabBtn", "ownerTabBtn", "visitorView", "ownerView", "carForm",
+      "robloxUsernameInput", "friendNameInput", "vehicleSelect", "customVehicleWrap",
+      "customVehicleInput", "reasonInput", "formError", "submitBtn", "syncStatus",
+      "receiptView", "receiptCodeText", "copyReceiptBtn", "newRequestBtn",
+      "ownerLockBox", "ownerLoginForm", "ownerEmail", "ownerPassword",
+      "passcodeError", "unlockBtn", "ownerDashboard", "searchInput", "statusFilter",
+      "refreshBtn", "exportJsonBtn", "exportCsvBtn", "lockBtn", "clearAllBtn",
+      "ownerSummary", "submissionsList"
+    ].map($);
+
+    syncStatus.textContent = "Connected securely to Firestore (live sync enabled).";
+
+    const validateRobloxUsername = name =>
+      /^[A-Za-z0-9_]{3,20}$/.test(name) &&
+      !name.startsWith("_") &&
+      !name.endsWith("_") &&
+      !name.includes("__")
+        ? ""
+        : "Username must be 3–20 characters using letters, numbers, or underscores (no leading/trailing/double underscores).";
+
+    const generateReceiptCode = () =>
+      `JB-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+    async function loadSubmissions() {
+      if (!auth.currentUser || auth.currentUser.uid !== OWNER_UID) return;
+      const q = query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      submissions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderInbox();
     }
-  });
-</script>
+
+    async function updateSubmissionStatus(id, status) {
+      await updateDoc(doc(db, COLLECTION_NAME, id), { status });
+      submissions = submissions.map(item => (item.id === id ? { ...item, status } : item));
+      renderInbox();
+    }
+
+    async function deleteSubmission(id) {
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
+      submissions = submissions.filter(item => item.id !== id);
+      renderInbox();
+    }
+
+    const escapeHtml = str =>
+      String(str ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+
+    function renderInbox() {
+      if (!isUnlocked) return;
+      const term = searchInput.value.trim().toLowerCase();
+      const statusVal = statusFilter.value;
+
+      const filtered = submissions.filter(item => {
+        const matchesStatus = statusVal === "ALL" || item.status === statusVal;
+        const haystack = [item.username, item.friendName, item.vehicle, item.reason, item.receiptCode]
+          .join(" ")
+          .toLowerCase();
+        return matchesStatus && (!term || haystack.includes(term));
+      });
+
+      ownerSummary.textContent = `Showing ${filtered.length} of ${submissions.length} submissions`;
+      if (!filtered.length) {
+        submissionsList.innerHTML = `<div class="subtitle">No requests.</div>`;
+        return;
+      }
+
+      submissionsList.innerHTML = filtered
+        .map(item => `
+          <div class="sub-item">
+            <div class="sub-header">
+              <strong>@${escapeHtml(item.username)} → ${escapeHtml(item.vehicle)}</strong>
+              <span class="subtitle">${escapeHtml(item.receiptCode)}</span>
+            </div>
+            <div class="sub-meta">
+              <div><strong>Friend:</strong> ${escapeHtml(item.friendName || "None")}</div>
+              <div><strong>Reason:</strong> ${escapeHtml(item.reason || "None")}</div>
+              <div><strong>Submitted:</strong> ${escapeHtml(item.createdAt || "")}</div>
+            </div>
+            <div class="sub-actions">
+              <select data-action="status" data-id="${escapeHtml(item.id)}">
+                ${["Pending", "Approved", "Fulfilled", "Declined"]
+                  .map(st => `<option value="${st}" ${item.status === st ? "selected" : ""}>${st}</option>`)
+                  .join("")}
+              </select>
+              <button type="button" class="secondary" data-action="copy" data-username="${escapeHtml(item.username)}">Copy User</button>
+              <button type="button" class="danger" data-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+            </div>
+          </div>
+        `)
+        .join("");
+    }
+
+    visitorTabBtn.addEventListener("click", () => {
+      visitorView.classList.remove("hidden");
+      ownerView.classList.add("hidden");
+    });
+
+    ownerTabBtn.addEventListener("click", () => {
+      visitorView.classList.add("hidden");
+      ownerView.classList.remove("hidden");
+      if (isUnlocked) loadSubmissions();
+    });
+
+    vehicleSelect.addEventListener("change", () => {
+      customVehicleWrap.classList.toggle("hidden", vehicleSelect.value !== "Custom");
+    });
+
+    carForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      formError.textContent = "";
+      const username = robloxUsernameInput.value.trim();
+      const finalVehicle = vehicleSelect.value === "Custom" ? customVehicleInput.value.trim() : vehicleSelect.value;
+      const err = validateRobloxUsername(username) || (!finalVehicle ? "Please choose or enter a vehicle." : "");
+      if (err) {
+        formError.textContent = err;
+        return;
+      }
+
+      submitBtn.disabled = true;
+      try {
+        const code = generateReceiptCode();
+        await addDoc(collection(db, COLLECTION_NAME), {
+          username,
+          friendName: friendNameInput.value.trim(),
+          vehicle: finalVehicle,
+          reason: reasonInput.value.trim(),
+          status: "Pending",
+          receiptCode: code,
+          createdAt: new Date().toISOString()
+        });
+        receiptCodeText.textContent = code;
+        carForm.classList.add("hidden");
+        receiptView.classList.remove("hidden");
+      } catch (errObj) {
+        formError.textContent = errObj.message;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    copyReceiptBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(receiptCodeText.textContent);
+        copyReceiptBtn.textContent = "Copied!";
+        setTimeout(() => (copyReceiptBtn.textContent = "Copy Receipt ID"), 1500);
+      } catch {}
+    });
+
+    newRequestBtn.addEventListener("click", () => {
+      carForm.reset();
+      customVehicleWrap.classList.add("hidden");
+      formError.textContent = "";
+      receiptView.classList.add("hidden");
+      carForm.classList.remove("hidden");
+    });
+
+    onAuthStateChanged(auth, async user => {
+      if (user && user.uid === OWNER_UID) {
+        isUnlocked = true;
+        passcodeError.textContent = "";
+        ownerPasswordInput.value = "";
+        ownerLockBox.classList.add("hidden");
+        ownerDashboard.classList.remove("hidden");
+        await loadSubmissions();
+      } else {
+        if (user) {
+          passcodeError.textContent = "This account is not authorized as the portal owner.";
+          await signOut(auth);
+        }
+        isUnlocked = false;
+        submissions = [];
+        submissionsList.innerHTML = "";
+        ownerDashboard.classList.add("hidden");
+        ownerLockBox.classList.remove("hidden");
+      }
+    });
+
+    ownerLoginForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      passcodeError.textContent = "";
+      const email = ownerEmailInput.value.trim();
+      const password = ownerPasswordInput.value;
+      if (!email || !password) {
+        passcodeError.textContent = "Enter both your owner email and password.";
+        return;
+      }
+      unlockBtn.disabled = true;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (errObj) {
+        passcodeError.textContent = errObj.message;
+      } finally {
+        unlockBtn.disabled = false;
+      }
+    });
+
+    lockBtn.addEventListener("click", () => signOut(auth));
+    refreshBtn.addEventListener("click", loadSubmissions);
+    searchInput.addEventListener("input", renderInbox);
+    statusFilter.addEventListener("change", renderInbox);
+
+    submissionsList.addEventListener("change", async e => {
+      if (e.target.dataset.action === "status") {
+        await updateSubmissionStatus(e.target.dataset.id, e.target.value);
+      }
+    });
+
+    submissionsList.addEventListener("click", async e => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      if (btn.dataset.action === "copy") {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.username);
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = "Copy User"), 1200);
+        } catch {}
+      }
+      if (btn.dataset.action === "delete") {
+        await deleteSubmission(btn.dataset.id);
+      }
+    });
+
+    const downloadFile = (file, data, type) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([data], { type }));
+      a.download = file;
+      a.click();
+    };
+
+    exportJsonBtn.addEventListener("click", () =>
+      downloadFile("jailbreak.json", JSON.stringify(submissions, null, 2), "application/json")
+    );
+
+    exportCsvBtn.addEventListener("click", () => {
+      const heads = ["receiptCode", "username", "friendName", "vehicle", "status", "reason", "createdAt"];
+      const rows = submissions.map(s => heads.map(h => `"${String(s[h] ?? "").replaceAll('"', '""')}"`).join(","));
+      downloadFile("jailbreak.csv", [heads.join(","), ...rows].join("\n"), "text/csv");
+    });
+
+    clearAllBtn.addEventListener("click", async () => {
+      if (confirm("Clear all submissions?")) {
+        const snap = await getDocs(collection(db, COLLECTION_NAME));
+        await Promise.all(snap.docs.map(d => deleteDoc(doc(db, COLLECTION_NAME, d.id))));
+        submissions = [];
+        renderInbox();
+      }
+    });
+  </script>
+</body>
+</html>
