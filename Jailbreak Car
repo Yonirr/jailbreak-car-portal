@@ -1,0 +1,218 @@
+<!-- ... existing code ... -->
+                  <p id="usernameError" class="hidden mt-1.5 text-xs text-rose-400 font-medium" role="alert"></p>
+                </div>
+
+                <!-- Friend Name Input -->
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label for="friendNameInput" class="block text-xs font-bold text-slate-200 uppercase tracking-wider">
+                      Friend's Name <span class="text-slate-400 font-normal normal-case">(Optional)</span>
+                    </label>
+                    <span class="text-[11px] text-slate-400">Any name</span>
+                  </div>
+                  <div class="relative">
+                    <i class="fa-solid fa-user-group absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                    <input
+                      type="text"
+                      id="friendNameInput"
+                      name="friendName"
+                      maxlength="40"
+                      placeholder="e.g. Alex, Jordan, or a duo partner"
+                      autocomplete="off"
+                      class="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
+                    />
+                  </div>
+                  <p class="mt-1.5 text-xs text-slate-400">
+                    Type any friend's name—kept private and visible only inside the Owner Inbox.
+                  </p>
+                </div>
+
+                <!-- Vehicle Selection -->
+                <div>
+<!-- ... existing code ... -->
+    const applicationForm = document.getElementById('applicationForm');
+    const robloxUsernameInput = document.getElementById('robloxUsernameInput');
+    const usernameError = document.getElementById('usernameError');
+    const friendNameInput = document.getElementById('friendNameInput');
+    const vehicleSelect = document.getElementById('vehicleSelect');
+<!-- ... existing code ... -->
+    function getSavedSubmissions() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(item => item && typeof item === 'object');
+      } catch (err) {
+        console.error('Failed to read submissions from localStorage:', err);
+        return [];
+      }
+    }
+// ... existing code ...
+      const searchTerm = (ownerSearchInput.value || '').trim().toLowerCase();
+      const statusFilter = ownerStatusFilter.value;
+
+      const filtered = submissions.filter(item => {
+        const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
+        const matchesSearch =
+          !searchTerm ||
+          (item.robloxUsername || '').toLowerCase().includes(searchTerm) ||
+          (item.friendName || '').toLowerCase().includes(searchTerm) ||
+          (item.vehicle || '').toLowerCase().includes(searchTerm) ||
+          (item.receiptCode || '').toLowerCase().includes(searchTerm) ||
+          (item.note || '').toLowerCase().includes(searchTerm);
+        return matchesStatus && matchesSearch;
+      });
+// ... existing code ...
+      ownerSubmissionsBody.innerHTML = filtered.map(item => {
+        const submittedDate = new Date(item.submittedAt || Date.now()).toLocaleString();
+        const safeUsername = escapeHtml(item.robloxUsername || '');
+        const safeFriendName = escapeHtml(item.friendName || '—');
+        const safeVehicle = escapeHtml(item.vehicle || '');
+        const safeCustomTag = item.isCustomVehicle
+          ? `<span class="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">Custom</span>`
+          : '';
+        const safeNote = item.note
+          ? `<p class="mt-1 text-xs text-slate-400 break-words">${escapeHtml(item.note)}</p>`
+          : `<p class="mt-1 text-xs text-slate-600 italic">No note provided</p>`;
+        const safeReceipt = escapeHtml(item.receiptCode || '');
+
+        return `
+          <tr class="hover:bg-slate-800/40 transition align-top">
+            <td class="py-3.5 px-4 whitespace-nowrap">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-white text-sm">@${safeUsername}</span>
+                <button
+                  type="button"
+                  onclick="copyText('${escapeJsSingleQuote(item.robloxUsername || '')}', 'Username copied')"
+                  title="Copy Roblox Username"
+                  class="text-xs px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                >
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+              <div class="mt-1 text-xs text-slate-400">
+                <span class="text-slate-500">Friend:</span> <span class="text-slate-200 font-medium">${safeFriendName}</span>
+              </div>
+              <div class="text-[11px] text-slate-500 mt-1">${escapeHtml(submittedDate)}</div>
+            </td>
+            <td class="py-3.5 px-4">
+<!-- ... existing code ... -->
+    function exportJson() {
+      try {
+        const data = getSavedSubmissions();
+        const payload = {
+          exportedAt: new Date().toISOString(),
+          totalApplications: data.length,
+          applications: data.map(item => ({
+            id: item.id,
+            receiptCode: item.receiptCode,
+            robloxUsername: item.robloxUsername,
+            friendName: item.friendName || '',
+            vehicle: item.vehicle,
+            isCustomVehicle: Boolean(item.isCustomVehicle),
+            note: item.note || '',
+            status: item.status || 'Pending',
+            submittedAt: item.submittedAt
+          }))
+        };
+        downloadFile(
+          `jailbreak-car-applications-${formatDateStamp()}.json`,
+          JSON.stringify(payload, null, 2),
+          'application/json'
+        );
+        showToast('Exported submissions as JSON.');
+      } catch (err) {
+        console.error('JSON export failed:', err);
+        showToast('Could not export JSON.', true);
+      }
+    }
+
+    function exportCsv() {
+      try {
+        const data = getSavedSubmissions();
+        const headers = ['Receipt Code', 'Roblox Username', 'Friend Name', 'Requested Vehicle', 'Custom Vehicle', 'Status', 'Submitted At', 'Note'];
+        const rows = data.map(item => [
+          csvEscape(item.receiptCode),
+          csvEscape(item.robloxUsername),
+          csvEscape(item.friendName || ''),
+          csvEscape(item.vehicle),
+          csvEscape(item.isCustomVehicle ? 'Yes' : 'No'),
+          csvEscape(item.status || 'Pending'),
+          csvEscape(new Date(item.submittedAt || Date.now()).toISOString()),
+          csvEscape(item.note || '')
+        ].join(','));
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        downloadFile(
+          `jailbreak-car-applications-${formatDateStamp()}.csv`,
+          csvContent,
+          'text/csv;charset=utf-8;'
+        );
+        showToast('Exported submissions as CSV.');
+      } catch (err) {
+        console.error('CSV export failed:', err);
+        showToast('Could not export CSV.', true);
+      }
+    }
+// ... existing code ...
+      applicationForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const usernameCheck = validateRobloxUsername(robloxUsernameInput.value);
+        if (!usernameCheck.valid) {
+          usernameError.textContent = usernameCheck.message;
+          usernameError.classList.remove('hidden');
+          robloxUsernameInput.classList.add('border-rose-500');
+          robloxUsernameInput.focus();
+          return;
+        }
+
+        const vehicleCheck = resolveSelectedVehicle();
+        if (!vehicleCheck.valid) {
+          customVehicleError.textContent = vehicleCheck.message;
+          customVehicleError.classList.remove('hidden');
+          customVehicleInput.classList.add('border-rose-500');
+          customVehicleInput.focus();
+          return;
+        }
+
+        try {
+          const submission = {
+            id: 'app_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            receiptCode: generateReceiptCode(),
+            robloxUsername: usernameCheck.value,
+            friendName: (friendNameInput.value || '').trim(),
+            vehicle: vehicleCheck.vehicle,
+            isCustomVehicle: vehicleCheck.isCustom,
+            note: (playstyleNoteInput.value || '').trim(),
+            status: 'Pending',
+            submittedAt: Date.now()
+          };
+
+          const existing = getSavedSubmissions();
+          existing.unshift(submission);
+          saveSubmissions(existing);
+
+          // Visitor sees only the receipt confirmation screen—never any list of applicants
+          receiptCodeDisplay.textContent = submission.receiptCode;
+          receiptScreen.classList.remove('hidden');
+          receiptScreen.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          applicationForm.reset();
+          friendNameInput.value = '';
+          customVehicleWrapper.classList.add('hidden');
+          customVehicleInput.required = false;
+          clearValidationErrors();
+
+          if (isOwnerUnlocked) {
+            renderOwnerInbox();
+          }
+
+          showToast('Application submitted privately.');
+        } catch (err) {
+          console.error('Failed to save application:', err);
+          showToast('Could not save application locally.', true);
+        }
+      });
+// ... existing code ...
